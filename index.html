@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Media Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>My Media Tracker</h1>
+
+    <div class="container">
+        <h2>Movies</h2>
+        <form id="movie-form">
+            <input type="text" id="movie-title" placeholder="Movie Title" required>
+            <input type="number" id="movie-rating" placeholder="Rating (1-10)" min="1" max="10" required>
+            <textarea id="movie-notes" placeholder="Your Notes"></textarea>
+            <button type="submit">Add Movie</button>
+        </form>
+        <div id="movie-list" class="media-list"></div>
+    </div>
+
+    <div class="container">
+        <h2>Manga</h2>
+        <form id="manga-form">
+            <input type="text" id="manga-title" placeholder="Manga Title" required>
+            <input type="number" id="manga-rating" placeholder="Rating (1-10)" min="1" max="10" required>
+            <textarea id="manga-notes" placeholder="Your Notes"></textarea>
+            <button type="submit">Add Manga</button>
+        </form>
+        <div id="manga-list" class="media-list"></div>
+    </div>
+
+    <div class="container">
+        <h2>Games</h2>
+        <form id="game-form">
+            <input type="text" id="game-title" placeholder="Game Title" required>
+            <input type="number" id="game-rating" placeholder="Rating (1-10)" min="1" max="10" required>
+            <textarea id="game-notes" placeholder="Your Notes"></textarea>
+            <button type="submit">Add Game</button>
+        </form>
+        <div id="game-list" class="media-list"></div>
+    </div>
+
+    <div class="container">
+        <h2>Books</h2>
+        <form id="book-form">
+            <input type="text" id="book-title" placeholder="Book Title" required>
+            <input type="number" id="book-rating" placeholder="Rating (1-10)" min="1" max="10" required>
+            <textarea id="book-notes" placeholder="Your Notes"></textarea>
+            <button type="submit">Add Book</button>
+        </form>
+        <div id="book-list" class="media-list"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
