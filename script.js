@@ -68,13 +68,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 dateAdded: new Date().toISOString()
             };
 
-            // Fetch Metadata (API Integration will be added in next step)
-            // This placeholder ensures the code runs now even without APIs
+            // Fetch Metadata with timeout
             if (typeof fetchMetadata === 'function') {
-                const metadata = await fetchMetadata(activeCategory, title);
-                if (metadata) {
-                    item.summary = metadata.summary || '';
-                    item.imageUrl = metadata.imageUrl || '';
+                // Create a timeout promise that rejects after 5 seconds
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout')), 5000)
+                );
+
+                try {
+                    const metadata = await Promise.race([
+                        fetchMetadata(activeCategory, title),
+                        timeoutPromise
+                    ]);
+
+                    if (metadata) {
+                        item.summary = metadata.summary || '';
+                        item.imageUrl = metadata.imageUrl || '';
+                    }
+                } catch (fetchError) {
+                    console.warn('Metadata fetch failed (likely offline or CORS):', fetchError);
+                    // Continue saving without metadata, but warn if it's a critical failure
+                    if (fetchError.message !== 'Timeout') {
+                        // Optional: alert user only on real errors, not just "not found"
+                    }
                 }
             }
 
@@ -86,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             addForm.classList.add('hidden');
         } catch (error) {
             console.error('Error adding item:', error);
-            alert('Failed to add item. See console for details.');
+            alert('Failed to add item. Check console for details.');
         } finally {
              submitBtn.innerHTML = originalBtnContent;
              submitBtn.disabled = false;
