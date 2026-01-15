@@ -2,6 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // State
     let activeCategory = 'movies';
 
+    const singularMap = {
+        'movies': 'Movie',
+        'manga': 'Manga',
+        'games': 'Game',
+        'books': 'Book'
+    };
+
     // DOM Elements
     const tabs = document.querySelectorAll('.tab-btn');
     const contentArea = document.getElementById('content-area');
@@ -21,12 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
             activeCategory = tab.dataset.tab;
 
             // Update label text based on category
-            const singularMap = {
-                'movies': 'Movie',
-                'manga': 'Manga',
-                'games': 'Game',
-                'books': 'Book'
-            };
             categoryLabel.textContent = singularMap[activeCategory] || 'Item';
 
             renderItems();
