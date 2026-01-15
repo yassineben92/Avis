@@ -1,4 +1,39 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Toast Notification System
+    const Toast = {
+        init() {
+            this.container = document.createElement('div');
+            this.container.className = 'toast-container';
+            document.body.appendChild(this.container);
+        },
+        show(message, type = 'info') {
+            if (!this.container) this.init();
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            let icon = 'fa-info-circle';
+            if (type === 'success') icon = 'fa-check-circle';
+            if (type === 'error') icon = 'fa-exclamation-circle';
+
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
+
+            this.container.appendChild(toast);
+
+            // Trigger reflow for animation
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.addEventListener('transitionend', () => {
+                    toast.remove();
+                });
+            }, 3000);
+        }
+    };
+
     // State
     let activeCategory = 'movies';
 
@@ -10,10 +45,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const categoryLabel = document.getElementById('category-label');
     const loadingIndicator = document.getElementById('loading-indicator');
 
+    // Filter & Sort
+    const searchInput = document.getElementById('search-input');
+    const sortSelect = document.getElementById('sort-select');
+
     // Modals
     const importBtn = document.getElementById('import-btn');
     const importModal = document.getElementById('import-modal');
     const confirmImportBtn = document.getElementById('confirm-import-btn');
+    const statsBtn = document.getElementById('stats-btn');
+    const statsModal = document.getElementById('stats-modal');
     const settingsBtn = document.getElementById('settings-btn');
     const settingsModal = document.getElementById('settings-modal');
     const saveSettingsBtn = document.getElementById('save-settings-btn');
@@ -26,6 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderItems();
     loadApiKey();
 
+    // Filter Listeners
+    searchInput.addEventListener('input', renderItems);
+    sortSelect.addEventListener('change', renderItems);
+
     // Modal Logic
     function openModal(modal) {
         modal.classList.remove('hidden');
@@ -34,9 +79,13 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.add('hidden');
     }
 
-    [importBtn, settingsBtn, recommendBtn].forEach(btn => {
+    [importBtn, statsBtn, settingsBtn, recommendBtn].forEach(btn => {
         btn.addEventListener('click', (e) => {
             if (e.currentTarget.id === 'import-btn') openModal(importModal);
+            if (e.currentTarget.id === 'stats-btn') {
+                openModal(statsModal);
+                updateStats();
+            }
             if (e.currentTarget.id === 'settings-btn') openModal(settingsModal);
             if (e.currentTarget.id === 'recommend-btn') {
                 openModal(recommendModal);
@@ -107,10 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 console.error('AI Import failed, falling back to basic parsing:', e);
-                alert(`AI Import failed (${e.message}). Falling back to simple line-by-line import.`);
+                Toast.show(`AI Import failed (${e.message}). Falling back to simple line-by-line import.`, 'error');
             }
         } else {
-             alert("No API Key found. Using simple line-by-line import. Add API Key in Settings for smart import.");
+             Toast.show("No API Key found. Using simple line-by-line import. Add API Key in Settings for smart import.", 'info');
         }
 
         // Fallback or if AI returned empty (and didn't error out completely)
@@ -168,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('import-text').value = '';
         confirmImportBtn.innerHTML = 'Import';
         confirmImportBtn.disabled = false;
-        alert(`Successfully imported ${count} items into ${activeCategory}!`);
+        Toast.show(`Successfully imported ${count} items into ${activeCategory}!`, 'success');
     });
 
     // Settings Logic
@@ -177,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = keyInput.value.trim();
 
         if (!key) {
-            alert('Please enter an API Key.');
+            Toast.show('Please enter an API Key.', 'error');
             return;
         }
 
@@ -192,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response.ok && data.models) {
                 localStorage.setItem('google_api_key', key);
-                alert('API Key verified and saved successfully!');
+                Toast.show('API Key verified and saved successfully!', 'success');
                 closeModal(settingsModal);
             } else {
                 const errorMsg = data.error ? data.error.message : 'Unknown error';
@@ -200,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('API Key Validation Failed:', error);
-            alert(`Invalid API Key: ${error.message}`);
+            Toast.show(`Invalid API Key: ${error.message}`, 'error');
         } finally {
             saveSettingsBtn.innerHTML = originalText;
             saveSettingsBtn.disabled = false;
@@ -316,13 +365,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const rating = ratingInput.value;
         const notes = notesInput.value;
 
-        // UI Feedback
-        const submitBtn = addForm.querySelector('.submit-btn');
-        const originalBtnContent = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding Metadata...';
-        submitBtn.disabled = true;
-
         try {
+            const dateAdded = new Date().toISOString();
             const item = {
                 title,
                 year,
@@ -330,49 +374,90 @@ document.addEventListener('DOMContentLoaded', () => {
                 notes,
                 summary: '',
                 imageUrl: '',
-                dateAdded: new Date().toISOString()
+                dateAdded: dateAdded,
+                isLoading: true
             };
-
-            // Fetch Metadata with timeout
-            if (typeof fetchMetadata === 'function') {
-                // Create a timeout promise that rejects after 5 seconds
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Timeout')), 5000)
-                );
-
-                try {
-                    const metadata = await Promise.race([
-                        fetchMetadata(activeCategory, title, year),
-                        timeoutPromise
-                    ]);
-
-                    if (metadata) {
-                        item.summary = metadata.summary || '';
-                        item.imageUrl = metadata.imageUrl || '';
-                    }
-                } catch (fetchError) {
-                    console.warn('Metadata fetch failed (likely offline or CORS):', fetchError);
-                    // Continue saving without metadata, but warn if it's a critical failure
-                    if (fetchError.message !== 'Timeout') {
-                        // Optional: alert user only on real errors, not just "not found"
-                    }
-                }
-            }
 
             saveItem(activeCategory, item);
             renderItems();
 
-            // Reset and Close
+            // Reset and Close Immediately
             addForm.reset();
             addForm.classList.add('hidden');
+            Toast.show('Item added! Fetching details...', 'info');
+
+            // Background Fetch
+            (async () => {
+                let updates = { isLoading: false };
+
+                if (typeof fetchMetadata === 'function') {
+                    try {
+                        const timeoutPromise = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('Timeout')), 10000)
+                        );
+
+                        const metadata = await Promise.race([
+                            fetchMetadata(activeCategory, title, year),
+                            timeoutPromise
+                        ]);
+
+                        if (metadata) {
+                            updates.summary = metadata.summary || '';
+                            updates.imageUrl = metadata.imageUrl || '';
+                        }
+                    } catch (e) {
+                        console.warn('Background fetch failed:', e);
+                    }
+                }
+
+                updateItemData(activeCategory, dateAdded, updates);
+            })();
+
         } catch (error) {
             console.error('Error adding item:', error);
-            alert('Failed to add item. Check console for details.');
-        } finally {
-             submitBtn.innerHTML = originalBtnContent;
-             submitBtn.disabled = false;
+            Toast.show('Failed to add item.', 'error');
         }
     });
+
+    // Stats Logic
+    function updateStats() {
+        const categories = ['movies', 'manga', 'games', 'books'];
+        let totalItems = 0;
+        let totalRating = 0;
+        let maxCount = -1;
+        let topCategory = '-';
+        let breakdownHtml = '';
+
+        categories.forEach(cat => {
+            const items = getItems(cat);
+            const count = items.length;
+            totalItems += count;
+
+            if (count > 0) {
+                const catTotalRating = items.reduce((sum, item) => sum + parseFloat(item.rating || 0), 0);
+                totalRating += catTotalRating;
+            }
+
+            if (count > maxCount) {
+                maxCount = count;
+                topCategory = cat;
+            }
+
+            breakdownHtml += `
+                <div class="stat-row">
+                    <span>${cat}</span>
+                    <span>${count} items</span>
+                </div>
+            `;
+        });
+
+        const avg = totalItems > 0 ? (totalRating / totalItems).toFixed(1) : '0.0';
+
+        document.getElementById('stat-total').textContent = totalItems;
+        document.getElementById('stat-avg').textContent = avg;
+        document.getElementById('stat-top-cat').textContent = totalItems > 0 ? topCategory : '-';
+        document.getElementById('stat-breakdown').innerHTML = breakdownHtml;
+    }
 
     // Data Management
     function getItems(category) {
@@ -383,6 +468,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const items = getItems(category);
         items.unshift(item); // Add to top
         localStorage.setItem(category, JSON.stringify(items));
+    }
+
+    function updateItemData(category, dateAdded, updates) {
+        const items = getItems(category);
+        const index = items.findIndex(i => i.dateAdded === dateAdded);
+        if (index !== -1) {
+            items[index] = { ...items[index], ...updates };
+            localStorage.setItem(category, JSON.stringify(items));
+            renderItems();
+        }
     }
 
     function deleteItem(index) {
@@ -397,18 +492,60 @@ document.addEventListener('DOMContentLoaded', () => {
     // Rendering
     function renderItems() {
         contentArea.innerHTML = '';
-        const items = getItems(activeCategory);
+        let items = getItems(activeCategory);
+
+        // Filter
+        const query = searchInput.value.toLowerCase();
+        if (query) {
+            items = items.filter(item => item.title.toLowerCase().includes(query));
+        }
+
+        // Sort
+        const sortMode = sortSelect.value;
+        items.sort((a, b) => {
+            if (sortMode === 'date-new') {
+                return new Date(b.dateAdded) - new Date(a.dateAdded);
+            }
+            if (sortMode === 'date-old') {
+                return new Date(a.dateAdded) - new Date(b.dateAdded);
+            }
+            if (sortMode === 'rating-high') {
+                return b.rating - a.rating;
+            }
+            if (sortMode === 'rating-low') {
+                return a.rating - b.rating;
+            }
+            if (sortMode === 'title-az') {
+                return a.title.localeCompare(b.title);
+            }
+            return 0;
+        });
 
         if (items.length === 0) {
             contentArea.innerHTML = `
                 <div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 10px;">
                     <i class="fas fa-ghost" style="font-size: 3rem; opacity: 0.5;"></i>
-                    <p>No items in this collection yet.</p>
+                    <p>No items found.</p>
                 </div>`;
             return;
         }
 
         items.forEach((item, index) => {
+            if (item.isLoading) {
+                 const card = document.createElement('div');
+                 card.className = 'skeleton-card skeleton';
+                 card.innerHTML = `
+                    <div class="skeleton-poster skeleton"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-text skeleton-title skeleton"></div>
+                        <div class="skeleton-text skeleton"></div>
+                        <div class="skeleton-text skeleton"></div>
+                    </div>
+                 `;
+                 contentArea.appendChild(card);
+                 return;
+            }
+
             const card = document.createElement('div');
             card.className = 'media-item';
 
