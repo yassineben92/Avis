@@ -72,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Fetch Metadata (API Integration will be added in next step)
             // This placeholder ensures the code runs now even without APIs
-            if (typeof fetchMetadata === 'function') {
-                const metadata = await fetchMetadata(activeCategory, title);
+            if (typeof window.fetchMetadata === 'function') {
+                const metadata = await window.fetchMetadata(activeCategory, title);
                 if (metadata) {
                     item.summary = metadata.summary || '';
                     item.imageUrl = metadata.imageUrl || '';
@@ -154,17 +154,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // API Integrations
+    const metadataCache = {};
+
     window.fetchMetadata = async function(category, title) {
+        const cacheKey = `${category}:${title.toLowerCase().trim()}`;
+        if (metadataCache[cacheKey]) {
+            return metadataCache[cacheKey];
+        }
+
         try {
+            let result = null;
             if (category === 'movies') {
-                return await fetchMovieMetadata(title);
+                result = await fetchMovieMetadata(title);
             } else if (category === 'manga') {
-                return await fetchMangaMetadata(title);
+                result = await fetchMangaMetadata(title);
             } else if (category === 'games') {
-                return await fetchGameMetadata(title);
+                result = await fetchGameMetadata(title);
             } else if (category === 'books') {
-                return await fetchBookMetadata(title);
+                result = await fetchBookMetadata(title);
             }
+
+            if (result) {
+                metadataCache[cacheKey] = result;
+            }
+            return result;
         } catch (error) {
             console.error(`Error fetching metadata for ${category}:`, error);
             return null;
