@@ -58,20 +58,20 @@ header {
 }
 
 .icon-btn {
-    background: var(--surface-color);
-    border: none;
-    color: var(--text-secondary);
-    width: 40px;
-    height: 40px;
+    background: transparent;
+    border: 1px solid #333;
+    color: var(--text-primary);
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     transition: 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.icon-btn:hover { background: var(--surface-hover); color: var(--primary-color); }
+.icon-btn:hover { background: var(--surface-hover); color: var(--primary-color); border-color: var(--primary-color); }
 
 .tabs {
     display: flex;
@@ -117,6 +117,8 @@ header {
     display: flex;
     gap: var(--spacing-md);
     margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .primary-btn {
@@ -139,6 +141,7 @@ header {
 }
 
 .ai-btn {
+    background-color: #FF5E62;
     background: linear-gradient(135deg, #FF9966, #FF5E62);
     border: none;
     color: white;
@@ -421,30 +424,28 @@ textarea:focus + label, textarea:not(:placeholder-shown) + label {
     position: absolute;
     top: 10px;
     right: 10px;
-    background: rgba(207, 102, 121, 0.9);
-    border: none;
+    background: #FF4444;
+    border: 2px solid rgba(255,255,255,0.2);
     color: white;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 0.9rem;
-    opacity: 0;
-    transform: scale(0.8);
-    transition: all 0.2s ease;
-    z-index: 10;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-}
-
-.media-item:hover .delete-btn {
+    font-size: 1rem;
     opacity: 1;
-    transform: scale(1);
+    z-index: 20;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+    transition: transform 0.2s ease, background-color 0.2s;
 }
 
 .delete-btn:hover {
-    background: #FF4444;
+    background: #ff0000;
     transform: scale(1.1);
+}
+
+.delete-btn:active {
+    transform: scale(0.95);
 }
