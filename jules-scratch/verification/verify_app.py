@@ -1,35 +1,21 @@
-import asyncio
-from playwright.async_api import async_playwright, expect
-import os
+from playwright.sync_api import sync_playwright, expect
 
-async def main():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+def verify_fix(page):
+    page.goto("http://localhost:8000")
+    page.click("#toggle-form-btn")
 
-        # Get the absolute path to the index.html file
-        file_path = os.path.abspath('index.html')
+    # Wait for the form to be visible
+    add_form = page.locator("#add-form")
+    expect(add_form).to_be_visible()
 
-        await page.goto(f'file://{file_path}')
+    # Check that the title input is focused
+    title_input = page.locator("#item-title")
+    expect(title_input).to_be_focused()
 
-        # Add a movie
-        await page.fill('#movie-title', 'The Matrix')
-        await page.fill('#movie-rating', '9')
-        await page.fill('#movie-notes', 'A classic sci-fi movie.')
-        await page.click('#movie-form button')
+    page.screenshot(path="jules-scratch/verification/verification.png")
 
-        # Wait for the movie to appear in the list
-        await page.wait_for_selector('.media-item')
-
-        # Wait for the summary to be fetched and displayed
-        summary_element = page.locator('.media-item p:has-text("Summary:")')
-        await expect(summary_element).not_to_contain_text('Not available', timeout=30000)
-
-
-        # Take a screenshot
-        await page.screenshot(path='jules-scratch/verification/verification.png')
-
-        await browser.close()
-
-if __name__ == '__main__':
-    asyncio.run(main())
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    verify_fix(page)
+    browser.close()
