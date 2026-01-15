@@ -417,3 +417,34 @@ textarea:focus + label, textarea:not(:placeholder-shown) + label {
     .header-top { flex-direction: column; gap: 15px; }
     .header-actions { width: 100%; justify-content: center; }
 }
+.delete-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(207, 102, 121, 0.9);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.9rem;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.2s ease;
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+
+.media-item:hover .delete-btn {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.delete-btn:hover {
+    background: #FF4444;
+    transform: scale(1.1);
+}

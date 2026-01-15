@@ -311,6 +311,15 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(category, JSON.stringify(items));
     }
 
+    function deleteItem(index) {
+        const items = getItems(activeCategory);
+        if (confirm(`Are you sure you want to delete "${items[index].title}"?`)) {
+            items.splice(index, 1);
+            localStorage.setItem(activeCategory, JSON.stringify(items));
+            renderItems();
+        }
+    }
+
     // Rendering
     function renderItems() {
         contentArea.innerHTML = '';
@@ -325,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        items.forEach(item => {
+        items.forEach((item, index) => {
             const card = document.createElement('div');
             card.className = 'media-item';
 
@@ -346,6 +355,9 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="poster-container">
                     ${imageHtml}
+                    <button class="delete-btn" data-index="${index}" title="Delete Item">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
                 <div class="item-info">
                     <div class="item-rating"><i class="fas fa-star"></i> ${item.rating}/10</div>
@@ -354,7 +366,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="item-notes">${item.notes || ''}</p>
                 </div>
             `;
+
+            // Attach delete listener directly to the button element we just created inside HTML string
+            // Wait, we need to access it after appendChild. Or better, use delegation or querySelector after loop.
+            // Let's use delegation on contentArea or individual attach.
+            // Individual attach is cleaner here:
             contentArea.appendChild(card);
+
+            card.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent card click if we add one later
+                deleteItem(index);
+            });
         });
     }
 
