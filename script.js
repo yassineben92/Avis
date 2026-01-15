@@ -62,56 +62,99 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = document.getElementById('import-text').value;
         if (!text.trim()) return;
 
-        confirmImportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        confirmImportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing with AI...';
         confirmImportBtn.disabled = true;
 
-        const lines = text.split('\n').filter(line => line.trim() !== '');
-        let count = 0;
+        const apiKey = localStorage.getItem('google_api_key') ? localStorage.getItem('google_api_key').trim() : '';
+        let itemsToImport = [];
 
-        for (const line of lines) {
-            // Simple parsing: "Title : Review"
-            // If ":" exists, split. If not, treat whole line as title.
-            let title = line;
-            let notes = '';
+        // Try AI Import first
+        if (apiKey) {
+            try {
+                const prompt = `Parse the following unstructured text into a JSON array of objects.
+                Each object must have:
+                - "title": (string) The title of the media.
+                - "rating": (number) A score from 1 to 10. if not explicitly stated, infer it from the sentiment of the review (e.g. "masterclass"=10, "nul"=2).
+                - "notes": (string) The user's review or comments.
 
-            if (line.includes(':')) {
-                const parts = line.split(':');
-                title = parts[0].trim();
-                notes = parts.slice(1).join(':').trim();
+                The text contains multiple items mixed together. Ignore lines that look like generic headers unless they are titles.
+                Return ONLY valid JSON, no markdown formatting.
+
+                Text to parse:
+                ${text.substring(0, 30000)} // Limit length to avoid token limits
+                `;
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error.message);
+                }
+
+                if (data.candidates && data.candidates[0].content) {
+                    let jsonText = data.candidates[0].content.parts[0].text;
+                    // Clean up markdown code blocks if present
+                    jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    itemsToImport = JSON.parse(jsonText);
+                }
+            } catch (e) {
+                console.error('AI Import failed, falling back to basic parsing:', e);
+                alert(`AI Import failed (${e.message}). Falling back to simple line-by-line import.`);
             }
+        } else {
+             alert("No API Key found. Using simple line-by-line import. Add API Key in Settings for smart import.");
+        }
 
-            // Heuristic Rating Guessing based on keywords in notes
-            let rating = 5; // Default
-            const lowerNotes = notes.toLowerCase();
-            if (lowerNotes.includes('masterclass') || lowerNotes.includes('dinguerie') || lowerNotes.includes('total') || lowerNotes.includes('grave bon')) rating = 10;
-            else if (lowerNotes.includes('super') || lowerNotes.includes('excellent') || lowerNotes.includes('grave aimé')) rating = 9;
-            else if (lowerNotes.includes('très bon') || lowerNotes.includes('bien aimé')) rating = 8;
-            else if (lowerNotes.includes('bon film') || lowerNotes.includes('pas mal')) rating = 7;
-            else if (lowerNotes.includes('ça va') || lowerNotes.includes('moyen')) rating = 6;
-            else if (lowerNotes.includes('bof') || lowerNotes.includes('ennuyant') || lowerNotes.includes('pas ouf')) rating = 4;
-            else if (lowerNotes.includes('nul') || lowerNotes.includes('bullshit')) rating = 2;
+        // Fallback or if AI returned empty (and didn't error out completely)
+        if (itemsToImport.length === 0) {
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            for (const line of lines) {
+                let title = line;
+                let notes = '';
+                if (line.includes(':')) {
+                    const parts = line.split(':');
+                    title = parts[0].trim();
+                    notes = parts.slice(1).join(':').trim();
+                }
+                // Basic heuristic for fallback
+                let rating = 5;
+                const lower = notes.toLowerCase();
+                if (lower.includes('masterclass')) rating = 10;
+                else if (lower.includes('nul')) rating = 2;
 
+                itemsToImport.push({ title, rating, notes });
+            }
+        }
+
+        // Process imported items
+        let count = 0;
+        for (const importedItem of itemsToImport) {
             const item = {
-                title,
-                rating,
-                notes,
+                title: importedItem.title || 'Unknown Title',
+                rating: importedItem.rating || 5,
+                notes: importedItem.notes || '',
                 summary: '',
                 imageUrl: '',
                 dateAdded: new Date().toISOString()
             };
 
-            // Fetch metadata (fire and forget to speed up import, or await?)
-            // Awaiting might be too slow for large lists. Let's await with short timeout to populate images if possible.
-            // Using the robust fetch function we already have.
+            // Fetch metadata
             if (typeof fetchMetadata === 'function') {
                 try {
-                     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000)); // Short timeout for bulk import
-                     const metadata = await Promise.race([fetchMetadata(activeCategory, title), timeoutPromise]).catch(() => null);
+                     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
+                     const metadata = await Promise.race([fetchMetadata(activeCategory, item.title), timeoutPromise]).catch(() => null);
                      if (metadata) {
                          item.summary = metadata.summary || '';
                          item.imageUrl = metadata.imageUrl || '';
                      }
-                } catch (e) { console.log('Import fetch skipped for ' + title); }
+                } catch (e) { console.log('Import fetch skipped for ' + item.title); }
             }
 
             saveItem(activeCategory, item);
@@ -130,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSettingsBtn.addEventListener('click', () => {
         const key = document.getElementById('api-key').value;
         if (key) {
-            localStorage.setItem('google_api_key', key);
+            localStorage.setItem('google_api_key', key.trim());
             alert('API Key saved!');
             closeModal(settingsModal);
         }
@@ -139,13 +182,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadApiKey() {
         const key = localStorage.getItem('google_api_key');
         if (key) {
-            document.getElementById('api-key').value = key;
+            document.getElementById('api-key').value = key.trim();
         }
     }
 
     // Recommendation Logic (Gemini)
     async function generateRecommendations() {
-        const apiKey = localStorage.getItem('google_api_key');
+        const apiKey = localStorage.getItem('google_api_key') ? localStorage.getItem('google_api_key').trim() : '';
         if (!apiKey) {
             recommendationContent.innerHTML = `
                 <div class="error-state">
