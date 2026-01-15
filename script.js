@@ -120,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const fragment = document.createDocumentFragment();
         items.forEach(item => {
             const card = document.createElement('div');
             card.className = 'media-item';
@@ -149,8 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="item-notes">${item.notes || ''}</p>
                 </div>
             `;
-            contentArea.appendChild(card);
+            fragment.appendChild(card);
         });
+        contentArea.appendChild(fragment);
     }
 
     // API Integrations
