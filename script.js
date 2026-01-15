@@ -37,7 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleFormBtn.addEventListener('click', () => {
         addForm.classList.toggle('hidden');
         if (!addForm.classList.contains('hidden')) {
-             document.getElementById('item-title').focus();
+            requestAnimationFrame(() => {
+                document.getElementById('item-title').focus();
+            });
         }
     });
 
