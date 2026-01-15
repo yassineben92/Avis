@@ -74,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prompt = `Parse the following unstructured text into a JSON array of objects.
                 Each object must have:
                 - "title": (string) The title of the media.
+                - "year": (number or null) The release year if mentioned or widely known for this title (e.g. 2024).
                 - "rating": (number) A score from 1 to 10. if not explicitly stated, infer it from the sentiment of the review (e.g. "masterclass"=10, "nul"=2).
                 - "notes": (string) The user's review or comments.
 
@@ -138,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const importedItem of itemsToImport) {
             const item = {
                 title: importedItem.title || 'Unknown Title',
+                year: importedItem.year || null,
                 rating: importedItem.rating || 5,
                 notes: importedItem.notes || '',
                 summary: '',
@@ -149,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof fetchMetadata === 'function') {
                 try {
                      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
-                     const metadata = await Promise.race([fetchMetadata(activeCategory, item.title), timeoutPromise]).catch(() => null);
+                     const metadata = await Promise.race([fetchMetadata(activeCategory, item.title, item.year), timeoutPromise]).catch(() => null);
                      if (metadata) {
                          item.summary = metadata.summary || '';
                          item.imageUrl = metadata.imageUrl || '';
@@ -305,10 +307,12 @@ document.addEventListener('DOMContentLoaded', () => {
     addForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const titleInput = document.getElementById('item-title');
+        const yearInput = document.getElementById('item-year');
         const ratingInput = document.getElementById('item-rating');
         const notesInput = document.getElementById('item-notes');
 
         const title = titleInput.value;
+        const year = yearInput.value ? parseInt(yearInput.value) : null;
         const rating = ratingInput.value;
         const notes = notesInput.value;
 
@@ -321,6 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const item = {
                 title,
+                year,
                 rating,
                 notes,
                 summary: '',
@@ -337,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const metadata = await Promise.race([
-                        fetchMetadata(activeCategory, title),
+                        fetchMetadata(activeCategory, title, year),
                         timeoutPromise
                     ]);
 
@@ -450,16 +455,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // API Integrations
-    window.fetchMetadata = async function(category, title) {
+    window.fetchMetadata = async function(category, title, year = null) {
         try {
             if (category === 'movies') {
-                return await fetchMovieMetadata(title);
+                return await fetchMovieMetadata(title, year);
             } else if (category === 'manga') {
-                return await fetchMangaMetadata(title);
+                return await fetchMangaMetadata(title, year);
             } else if (category === 'games') {
-                return await fetchGameMetadata(title);
+                return await fetchGameMetadata(title, year);
             } else if (category === 'books') {
-                return await fetchBookMetadata(title);
+                return await fetchBookMetadata(title, year);
             }
         } catch (error) {
             console.error(`Error fetching metadata for ${category}:`, error);
@@ -467,9 +472,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    async function fetchMovieMetadata(title) {
+    async function fetchMovieMetadata(title, year) {
         try {
-            const searchUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/search?q=${title}`)}`;
+            const query = year ? `${title} ${year}` : title;
+            const searchUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/search?q=${query}`)}`;
             const response = await fetch(searchUrl);
             const data = await response.json();
 
@@ -501,8 +507,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
-    async function fetchMangaMetadata(title) {
+    async function fetchMangaMetadata(title, year) {
         try {
+            // Jikan search is less strict with years, but we can try appending if it helps context,
+            // though usually title is enough for manga. Let's keep it simple for now as Jikan doesn't support fuzzy year in query well.
             const response = await fetch(`https://api.jikan.moe/v4/manga?q=${title}&limit=1`);
             const data = await response.json();
 
@@ -519,8 +527,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
-    async function fetchGameMetadata(title) {
+    async function fetchGameMetadata(title, year) {
         try {
+            // Wikipedia search is strict on titles. Appending year might break "God of War" -> "God of War 2018".
+            // However, "God of War (2018 video game)" is a common wiki title format.
+            // Let's try searching for the title, and if year is provided, maybe prefer a result with that year?
+            // For simplicity with this API, we'll stick to title but if year is provided, we might try appending it if the first fails?
+            // Actually, let's just use the title for now to avoid breaking existing valid lookups.
+            // A better strategy for games with year is "Title (Year video game)" or similar, but it's hard to guess.
+            // Let's rely on the user providing a specific title or just searching "Title".
             const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages|extracts&titles=${encodeURIComponent(title)}&pithumbsize=600&exintro&explaintext&origin=*`;
             const response = await fetch(url);
             const data = await response.json();
@@ -543,8 +558,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
-    async function fetchBookMetadata(title) {
+    async function fetchBookMetadata(title, year) {
         try {
+            // OpenLibrary supports title search nicely.
             const response = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&limit=1`);
             const data = await response.json();
 
