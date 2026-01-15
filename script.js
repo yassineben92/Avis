@@ -10,8 +10,199 @@ document.addEventListener('DOMContentLoaded', () => {
     const categoryLabel = document.getElementById('category-label');
     const loadingIndicator = document.getElementById('loading-indicator');
 
+    // Modals
+    const importBtn = document.getElementById('import-btn');
+    const importModal = document.getElementById('import-modal');
+    const confirmImportBtn = document.getElementById('confirm-import-btn');
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    const recommendBtn = document.getElementById('recommend-btn');
+    const recommendModal = document.getElementById('recommend-modal');
+    const recommendationContent = document.getElementById('recommendation-content');
+    const closeButtons = document.querySelectorAll('.close-modal');
+
     // Initial Load
     renderItems();
+    loadApiKey();
+
+    // Modal Logic
+    function openModal(modal) {
+        modal.classList.remove('hidden');
+    }
+    function closeModal(modal) {
+        modal.classList.add('hidden');
+    }
+
+    [importBtn, settingsBtn, recommendBtn].forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            if (e.currentTarget.id === 'import-btn') openModal(importModal);
+            if (e.currentTarget.id === 'settings-btn') openModal(settingsModal);
+            if (e.currentTarget.id === 'recommend-btn') {
+                openModal(recommendModal);
+                generateRecommendations();
+            }
+        });
+    });
+
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.target.closest('.modal').classList.add('hidden');
+        });
+    });
+
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.classList.add('hidden');
+        }
+    });
+
+    // Import Logic
+    confirmImportBtn.addEventListener('click', async () => {
+        const text = document.getElementById('import-text').value;
+        if (!text.trim()) return;
+
+        confirmImportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        confirmImportBtn.disabled = true;
+
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+        let count = 0;
+
+        for (const line of lines) {
+            // Simple parsing: "Title : Review"
+            // If ":" exists, split. If not, treat whole line as title.
+            let title = line;
+            let notes = '';
+
+            if (line.includes(':')) {
+                const parts = line.split(':');
+                title = parts[0].trim();
+                notes = parts.slice(1).join(':').trim();
+            }
+
+            // Heuristic Rating Guessing based on keywords in notes
+            let rating = 5; // Default
+            const lowerNotes = notes.toLowerCase();
+            if (lowerNotes.includes('masterclass') || lowerNotes.includes('dinguerie') || lowerNotes.includes('total') || lowerNotes.includes('grave bon')) rating = 10;
+            else if (lowerNotes.includes('super') || lowerNotes.includes('excellent') || lowerNotes.includes('grave aimé')) rating = 9;
+            else if (lowerNotes.includes('très bon') || lowerNotes.includes('bien aimé')) rating = 8;
+            else if (lowerNotes.includes('bon film') || lowerNotes.includes('pas mal')) rating = 7;
+            else if (lowerNotes.includes('ça va') || lowerNotes.includes('moyen')) rating = 6;
+            else if (lowerNotes.includes('bof') || lowerNotes.includes('ennuyant') || lowerNotes.includes('pas ouf')) rating = 4;
+            else if (lowerNotes.includes('nul') || lowerNotes.includes('bullshit')) rating = 2;
+
+            const item = {
+                title,
+                rating,
+                notes,
+                summary: '',
+                imageUrl: '',
+                dateAdded: new Date().toISOString()
+            };
+
+            // Fetch metadata (fire and forget to speed up import, or await?)
+            // Awaiting might be too slow for large lists. Let's await with short timeout to populate images if possible.
+            // Using the robust fetch function we already have.
+            if (typeof fetchMetadata === 'function') {
+                try {
+                     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000)); // Short timeout for bulk import
+                     const metadata = await Promise.race([fetchMetadata(activeCategory, title), timeoutPromise]).catch(() => null);
+                     if (metadata) {
+                         item.summary = metadata.summary || '';
+                         item.imageUrl = metadata.imageUrl || '';
+                     }
+                } catch (e) { console.log('Import fetch skipped for ' + title); }
+            }
+
+            saveItem(activeCategory, item);
+            count++;
+        }
+
+        renderItems();
+        closeModal(importModal);
+        document.getElementById('import-text').value = '';
+        confirmImportBtn.innerHTML = 'Import';
+        confirmImportBtn.disabled = false;
+        alert(`Successfully imported ${count} items into ${activeCategory}!`);
+    });
+
+    // Settings Logic
+    saveSettingsBtn.addEventListener('click', () => {
+        const key = document.getElementById('api-key').value;
+        if (key) {
+            localStorage.setItem('google_api_key', key);
+            alert('API Key saved!');
+            closeModal(settingsModal);
+        }
+    });
+
+    function loadApiKey() {
+        const key = localStorage.getItem('google_api_key');
+        if (key) {
+            document.getElementById('api-key').value = key;
+        }
+    }
+
+    // Recommendation Logic (Gemini)
+    async function generateRecommendations() {
+        const apiKey = localStorage.getItem('google_api_key');
+        if (!apiKey) {
+            recommendationContent.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-key"></i>
+                    <p>Please enter your Google AI Studio API Key in Settings first.</p>
+                </div>`;
+            return;
+        }
+
+        const items = getItems(activeCategory);
+        if (items.length < 3) {
+            recommendationContent.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Add at least 3 items to your ${activeCategory} list to get recommendations.</p>
+                </div>`;
+            return;
+        }
+
+        // Prepare Prompt
+        const libraryText = items.slice(0, 30).map(i => `- ${i.title} (${i.rating}/10): ${i.notes}`).join('\n');
+        const prompt = `Based on my following ${activeCategory} library and reviews, recommend 3 new ${activeCategory} I might like.
+        Format the output as a simple HTML list with <h3>Title</h3>, <p><strong>Reason:</strong> ...</p> per item. Do not include markdown code blocks.
+
+        My Library:
+        ${libraryText}`;
+
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.candidates && data.candidates[0].content) {
+                const aiText = data.candidates[0].content.parts[0].text;
+                // Basic clean up of markdown if Gemini sends it
+                const htmlContent = aiText.replace(/```html/g, '').replace(/```/g, '');
+                recommendationContent.innerHTML = htmlContent;
+            } else {
+                throw new Error('No candidates in response');
+            }
+
+        } catch (error) {
+            console.error('Recommendation Error:', error);
+            recommendationContent.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Failed to get recommendations. Check your API Key and internet connection.</p>
+                    <small>${error.message}</small>
+                </div>`;
+        }
+    }
 
     // Tab Switching
     tabs.forEach(tab => {
