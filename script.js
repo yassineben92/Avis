@@ -170,12 +170,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Settings Logic
-    saveSettingsBtn.addEventListener('click', () => {
-        const key = document.getElementById('api-key').value;
-        if (key) {
-            localStorage.setItem('google_api_key', key.trim());
-            alert('API Key saved!');
-            closeModal(settingsModal);
+    saveSettingsBtn.addEventListener('click', async () => {
+        const keyInput = document.getElementById('api-key');
+        const key = keyInput.value.trim();
+
+        if (!key) {
+            alert('Please enter an API Key.');
+            return;
+        }
+
+        const originalText = saveSettingsBtn.innerHTML;
+        saveSettingsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+        saveSettingsBtn.disabled = true;
+
+        try {
+            // Test the key by listing models
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+            const data = await response.json();
+
+            if (response.ok && data.models) {
+                localStorage.setItem('google_api_key', key);
+                alert('API Key verified and saved successfully!');
+                closeModal(settingsModal);
+            } else {
+                const errorMsg = data.error ? data.error.message : 'Unknown error';
+                throw new Error(errorMsg);
+            }
+        } catch (error) {
+            console.error('API Key Validation Failed:', error);
+            alert(`Invalid API Key: ${error.message}`);
+        } finally {
+            saveSettingsBtn.innerHTML = originalText;
+            saveSettingsBtn.disabled = false;
         }
     });
 
