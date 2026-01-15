@@ -3,56 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Media Tracker</title>
+    <title>Media Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>My Media Tracker</h1>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-layer-group"></i> Media Tracker
+            </div>
+            <nav class="tabs">
+                <button class="tab-btn active" data-tab="movies">
+                    <i class="fas fa-film"></i> Movies
+                </button>
+                <button class="tab-btn" data-tab="manga">
+                    <i class="fas fa-book-open"></i> Manga
+                </button>
+                <button class="tab-btn" data-tab="games">
+                    <i class="fas fa-gamepad"></i> Games
+                </button>
+                <button class="tab-btn" data-tab="books">
+                    <i class="fas fa-book"></i> Books
+                </button>
+            </nav>
+        </header>
 
-    <div class="container">
-        <h2>Movies</h2>
-        <form id="movie-form">
-            <input type="text" id="movie-title" placeholder="Movie Title" required>
-            <input type="number" id="movie-rating" placeholder="Rating (1-10)" min="1" max="10" required>
-            <textarea id="movie-notes" placeholder="Your Notes"></textarea>
-            <button type="submit">Add Movie</button>
-        </form>
-        <div id="movie-list" class="media-list"></div>
+        <main>
+            <section class="add-item-section">
+                <button id="toggle-form-btn" class="primary-btn">
+                    <i class="fas fa-plus"></i> Add New <span id="category-label">Movie</span>
+                </button>
+                <form id="add-form" class="hidden">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <input type="text" id="item-title" placeholder=" " required>
+                            <label for="item-title">Title</label>
+                        </div>
+                        <div class="form-group rating-group">
+                            <input type="number" id="item-rating" min="1" max="10" placeholder=" " required>
+                            <label for="item-rating">Rating (1-10)</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <textarea id="item-notes" placeholder=" "></textarea>
+                        <label for="item-notes">Personal Notes</label>
+                    </div>
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-save"></i> Save to Library
+                    </button>
+                </form>
+            </section>
+
+            <div id="loading-indicator" class="hidden">
+                <i class="fas fa-spinner fa-spin"></i> Finding metadata...
+            </div>
+
+            <section id="content-area" class="media-grid">
+                <!-- Items will be injected here via JS -->
+            </section>
+        </main>
     </div>
-
-    <div class="container">
-        <h2>Manga</h2>
-        <form id="manga-form">
-            <input type="text" id="manga-title" placeholder="Manga Title" required>
-            <input type="number" id="manga-rating" placeholder="Rating (1-10)" min="1" max="10" required>
-            <textarea id="manga-notes" placeholder="Your Notes"></textarea>
-            <button type="submit">Add Manga</button>
-        </form>
-        <div id="manga-list" class="media-list"></div>
-    </div>
-
-    <div class="container">
-        <h2>Games</h2>
-        <form id="game-form">
-            <input type="text" id="game-title" placeholder="Game Title" required>
-            <input type="number" id="game-rating" placeholder="Rating (1-10)" min="1" max="10" required>
-            <textarea id="game-notes" placeholder="Your Notes"></textarea>
-            <button type="submit">Add Game</button>
-        </form>
-        <div id="game-list" class="media-list"></div>
-    </div>
-
-    <div class="container">
-        <h2>Books</h2>
-        <form id="book-form">
-            <input type="text" id="book-title" placeholder="Book Title" required>
-            <input type="number" id="book-rating" placeholder="Rating (1-10)" min="1" max="10" required>
-            <textarea id="book-notes" placeholder="Your Notes"></textarea>
-            <button type="submit">Add Book</button>
-        </form>
-        <div id="book-list" class="media-list"></div>
-    </div>
-
     <script src="script.js"></script>
 </body>
 </html>

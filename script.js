@@ -1,127 +1,280 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM elements
-    const movieForm = document.getElementById('movie-form');
-    const movieList = document.getElementById('movie-list');
-    const mangaForm = document.getElementById('manga-form');
-    const mangaList = document.getElementById('manga-list');
-    const gameForm = document.getElementById('game-form');
-    const gameList = document.getElementById('game-list');
-    const bookForm = document.getElementById('book-form');
-    const bookList = document.getElementById('book-list');
+    // State
+    let activeCategory = 'movies';
 
-    // Load items from local storage
-    loadItems('movies', movieList);
-    loadItems('manga', mangaList);
-    loadItems('games', gameList);
-    loadItems('books', bookList);
+    // DOM Elements
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contentArea = document.getElementById('content-area');
+    const addForm = document.getElementById('add-form');
+    const toggleFormBtn = document.getElementById('toggle-form-btn');
+    const categoryLabel = document.getElementById('category-label');
+    const loadingIndicator = document.getElementById('loading-indicator');
 
-    // Event Listeners
-    movieForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        addItem('movies', movieForm, movieList);
+    // Initial Load
+    renderItems();
+
+    // Tab Switching
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            activeCategory = tab.dataset.tab;
+
+            // Update label text based on category
+            const singularMap = {
+                'movies': 'Movie',
+                'manga': 'Manga',
+                'games': 'Game',
+                'books': 'Book'
+            };
+            categoryLabel.textContent = singularMap[activeCategory] || 'Item';
+
+            renderItems();
+        });
     });
 
-    mangaForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        addItem('manga', mangaForm, mangaList);
-    });
-
-    gameForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        addItem('games', gameForm, gameList);
-    });
-
-    bookForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        addItem('books', bookForm, bookList);
-    });
-
-    function addItem(category, form, list) {
-        const title = form.querySelector('input[type="text"]').value;
-        const rating = form.querySelector('input[type="number"]').value;
-        const notes = form.querySelector('textarea').value;
-
-        const item = {
-            title,
-            rating,
-            notes,
-            summary: ''
-        };
-
-        // For movies, fetch summary from API
-        if (category === 'movies') {
-            fetchMovieSummary(title, (summary) => {
-                item.summary = summary;
-                const items = getItems(category);
-                items.push(item);
-                saveItems(category, items);
-                displayItem(item, list);
-                form.reset();
-            });
-        } else {
-            const items = getItems(category);
-            items.push(item);
-            saveItems(category, items);
-            displayItem(item, list);
-            form.reset();
+    // Form Toggle
+    toggleFormBtn.addEventListener('click', () => {
+        addForm.classList.toggle('hidden');
+        if (!addForm.classList.contains('hidden')) {
+             document.getElementById('item-title').focus();
         }
-    }
+    });
 
+    // Add Item
+    addForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const titleInput = document.getElementById('item-title');
+        const ratingInput = document.getElementById('item-rating');
+        const notesInput = document.getElementById('item-notes');
+
+        const title = titleInput.value;
+        const rating = ratingInput.value;
+        const notes = notesInput.value;
+
+        // UI Feedback
+        const submitBtn = addForm.querySelector('.submit-btn');
+        const originalBtnContent = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding Metadata...';
+        submitBtn.disabled = true;
+
+        try {
+            const item = {
+                title,
+                rating,
+                notes,
+                summary: '',
+                imageUrl: '',
+                dateAdded: new Date().toISOString()
+            };
+
+            // Fetch Metadata (API Integration will be added in next step)
+            // This placeholder ensures the code runs now even without APIs
+            if (typeof fetchMetadata === 'function') {
+                const metadata = await fetchMetadata(activeCategory, title);
+                if (metadata) {
+                    item.summary = metadata.summary || '';
+                    item.imageUrl = metadata.imageUrl || '';
+                }
+            }
+
+            saveItem(activeCategory, item);
+            renderItems();
+
+            // Reset and Close
+            addForm.reset();
+            addForm.classList.add('hidden');
+        } catch (error) {
+            console.error('Error adding item:', error);
+            alert('Failed to add item. See console for details.');
+        } finally {
+             submitBtn.innerHTML = originalBtnContent;
+             submitBtn.disabled = false;
+        }
+    });
+
+    // Data Management
     function getItems(category) {
         return JSON.parse(localStorage.getItem(category)) || [];
     }
 
-    function saveItems(category, items) {
+    function saveItem(category, item) {
+        const items = getItems(category);
+        items.unshift(item); // Add to top
         localStorage.setItem(category, JSON.stringify(items));
     }
 
-    function loadItems(category, list) {
-        const items = getItems(category);
-        items.forEach(item => displayItem(item, list));
+    // Rendering
+    function renderItems() {
+        contentArea.innerHTML = '';
+        const items = getItems(activeCategory);
+
+        if (items.length === 0) {
+            contentArea.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                    <i class="fas fa-ghost" style="font-size: 3rem; opacity: 0.5;"></i>
+                    <p>No items in this collection yet.</p>
+                </div>`;
+            return;
+        }
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'media-item';
+
+            // Handle legacy data or missing images
+            let imageHtml;
+            if (item.imageUrl) {
+                imageHtml = `<img src="${item.imageUrl}" alt="${item.title}" class="poster-image">`;
+            } else {
+                let icon = 'fa-image';
+                if (activeCategory === 'movies') icon = 'fa-film';
+                if (activeCategory === 'manga') icon = 'fa-book-open';
+                if (activeCategory === 'games') icon = 'fa-gamepad';
+                if (activeCategory === 'books') icon = 'fa-book';
+
+                imageHtml = `<div class="no-image"><i class="fas ${icon}"></i><span>${item.title}</span></div>`;
+            }
+
+            card.innerHTML = `
+                <div class="poster-container">
+                    ${imageHtml}
+                </div>
+                <div class="item-info">
+                    <div class="item-rating"><i class="fas fa-star"></i> ${item.rating}/10</div>
+                    <h3 class="item-title">${item.title}</h3>
+                    <p class="item-summary">${item.summary || 'No summary available.'}</p>
+                    <p class="item-notes">${item.notes || ''}</p>
+                </div>
+            `;
+            contentArea.appendChild(card);
+        });
     }
 
-    function displayItem(item, list) {
-        const itemElement = document.createElement('div');
-        itemElement.classList.add('media-item');
-        itemElement.innerHTML = `
-            <h3>${item.title}</h3>
-            <p><strong>Rating:</strong> ${item.rating}/10</p>
-            <p><strong>Notes:</strong> ${item.notes}</p>
-            <p><strong>Summary:</strong> ${item.summary || 'Not available'}</p>
-        `;
-        list.appendChild(itemElement);
-    }
+    // API Integrations
+    window.fetchMetadata = async function(category, title) {
+        try {
+            if (category === 'movies') {
+                return await fetchMovieMetadata(title);
+            } else if (category === 'manga') {
+                return await fetchMangaMetadata(title);
+            } else if (category === 'games') {
+                return await fetchGameMetadata(title);
+            } else if (category === 'books') {
+                return await fetchBookMetadata(title);
+            }
+        } catch (error) {
+            console.error(`Error fetching metadata for ${category}:`, error);
+            return null;
+        }
+    };
 
-    function fetchMovieSummary(title, callback) {
-        const searchUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/search?q=${title}`)}`;
+    async function fetchMovieMetadata(title) {
+        try {
+            const searchUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/search?q=${title}`)}`;
+            const response = await fetch(searchUrl);
+            const data = await response.json();
 
-        fetch(searchUrl)
-            .then(response => response.json())
-            .then(data => {
-                if (data.ok && data.description && data.description.length > 0) {
-                    const imdbId = data.description[0]['#IMDB_ID'];
-                    const detailsUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/title/${imdbId}`)}`;
+            if (data.ok && data.description && data.description.length > 0) {
+                const result = data.description[0];
+                const imdbId = result['#IMDB_ID'];
+                let imageUrl = result['#IMG_POSTER'];
 
-                    fetch(detailsUrl)
-                        .then(response => response.text())
-                        .then(html => {
-                            const parser = new DOMParser();
-                            const doc = parser.parseFromString(html, 'text/html');
-                            const summaryElement = doc.querySelector('tg-spoiler');
-                            const summary = summaryElement ? summaryElement.textContent.trim() : 'Summary not found.';
-                            callback(summary);
-                        })
-                        .catch(error => {
-                            console.error('Error fetching movie details:', error);
-                            callback('Could not fetch summary.');
-                        });
-                } else {
-                    callback('Movie not found.');
+                // Fetch details for summary
+                const detailsUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/title/${imdbId}`)}`;
+                const detailsResponse = await fetch(detailsUrl);
+                const html = await detailsResponse.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                const summaryElement = doc.querySelector('tg-spoiler') || doc.querySelector('[data-testid="plot-xl"]') || doc.querySelector('.ipc-html-content-inner-div');
+                const summary = summaryElement ? summaryElement.textContent.trim() : 'Summary not available.';
+
+                if (!imageUrl) {
+                    const imgElement = doc.querySelector('.ipc-image') || doc.querySelector('img[class*="poster"]');
+                    if (imgElement) imageUrl = imgElement.src;
                 }
-            })
-            .catch(error => {
-                console.error('Error searching for movie:', error);
-                callback('Could not fetch summary.');
-            });
+
+                return { summary, imageUrl };
+            }
+        } catch (e) {
+            console.error('Movie API Error:', e);
+        }
+        return null;
+    }
+
+    async function fetchMangaMetadata(title) {
+        try {
+            const response = await fetch(`https://api.jikan.moe/v4/manga?q=${title}&limit=1`);
+            const data = await response.json();
+
+            if (data.data && data.data.length > 0) {
+                const manga = data.data[0];
+                return {
+                    summary: manga.synopsis,
+                    imageUrl: manga.images.jpg.large_image_url
+                };
+            }
+        } catch (e) {
+            console.error('Manga API Error:', e);
+        }
+        return null;
+    }
+
+    async function fetchGameMetadata(title) {
+        try {
+            const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages|extracts&titles=${encodeURIComponent(title)}&pithumbsize=600&exintro&explaintext&origin=*`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.query && data.query.pages) {
+                const pages = data.query.pages;
+                const pageId = Object.keys(pages)[0];
+
+                if (pageId !== '-1') {
+                    const page = pages[pageId];
+                    return {
+                        summary: page.extract,
+                        imageUrl: page.thumbnail ? page.thumbnail.source : null
+                    };
+                }
+            }
+        } catch (e) {
+            console.error('Game API Error:', e);
+        }
+        return null;
+    }
+
+    async function fetchBookMetadata(title) {
+        try {
+            const response = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&limit=1`);
+            const data = await response.json();
+
+            if (data.docs && data.docs.length > 0) {
+                const book = data.docs[0];
+                const coverId = book.cover_i;
+                const imageUrl = coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : null;
+
+                let summary = 'Summary not available.';
+                if (book.key) {
+                     try {
+                         const workResponse = await fetch(`https://openlibrary.org${book.key}.json`);
+                         const workData = await workResponse.json();
+                         if (typeof workData.description === 'string') {
+                             summary = workData.description;
+                         } else if (workData.description && workData.description.value) {
+                             summary = workData.description.value;
+                         }
+                     } catch (e) {
+                         console.warn('Could not fetch book summary', e);
+                     }
+                }
+
+                return { summary, imageUrl };
+            }
+        } catch (e) {
+            console.error('Book API Error:', e);
+        }
+        return null;
     }
 });
