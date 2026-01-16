@@ -73,11 +73,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Fetch Metadata (API Integration will be added in next step)
             // This placeholder ensures the code runs now even without APIs
+            let deferredFetch = null;
             if (typeof window.fetchMetadata === 'function') {
                 const metadata = await window.fetchMetadata(activeCategory, title);
                 if (metadata) {
                     item.summary = metadata.summary || '';
                     item.imageUrl = metadata.imageUrl || '';
+                    if (metadata.deferredSummary) {
+                        deferredFetch = metadata.deferredSummary;
+                    }
                 }
             }
 
@@ -87,6 +91,24 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset and Close
             addForm.reset();
             addForm.classList.add('hidden');
+
+            // Handle deferred fetch
+            if (deferredFetch) {
+                deferredFetch().then(result => {
+                    if (result) {
+                        // Result can be string or object { summary, imageUrl }
+                        if (typeof result === 'string') {
+                            item.summary = result;
+                        } else if (typeof result === 'object') {
+                            if (result.summary) item.summary = result.summary;
+                            if (result.imageUrl) item.imageUrl = result.imageUrl;
+                        }
+
+                        updateItem(activeCategory, item);
+                        renderItems();
+                    }
+                });
+            }
         } catch (error) {
             console.error('Error adding item:', error);
             alert('Failed to add item. See console for details.');
@@ -105,6 +127,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const items = getItems(category);
         items.unshift(item); // Add to top
         localStorage.setItem(category, JSON.stringify(items));
+    }
+
+    function updateItem(category, updatedItem) {
+        const items = getItems(category);
+        const index = items.findIndex(i => i.dateAdded === updatedItem.dateAdded);
+        if (index !== -1) {
+            items[index] = updatedItem;
+            localStorage.setItem(category, JSON.stringify(items));
+        }
     }
 
     // Rendering
@@ -198,22 +229,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const imdbId = result['#IMDB_ID'];
                 let imageUrl = result['#IMG_POSTER'];
 
-                // Fetch details for summary
-                const detailsUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/title/${imdbId}`)}`;
-                const detailsResponse = await fetch(detailsUrl);
-                const html = await detailsResponse.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
+                // Define deferred task for fetching details
+                const deferredSummary = async () => {
+                    try {
+                        const detailsUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/title/${imdbId}`)}`;
+                        const detailsResponse = await fetch(detailsUrl);
+                        const html = await detailsResponse.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
 
-                const summaryElement = doc.querySelector('tg-spoiler') || doc.querySelector('[data-testid="plot-xl"]') || doc.querySelector('.ipc-html-content-inner-div');
-                const summary = summaryElement ? summaryElement.textContent.trim() : 'Summary not available.';
+                        const summaryElement = doc.querySelector('tg-spoiler') || doc.querySelector('[data-testid="plot-xl"]') || doc.querySelector('.ipc-html-content-inner-div');
+                        const summary = summaryElement ? summaryElement.textContent.trim() : 'Summary not available.';
 
-                if (!imageUrl) {
-                    const imgElement = doc.querySelector('.ipc-image') || doc.querySelector('img[class*="poster"]');
-                    if (imgElement) imageUrl = imgElement.src;
-                }
+                        // Also try to find better image if initial was missing
+                        let updatedImageUrl = imageUrl;
+                        if (!updatedImageUrl) {
+                            const imgElement = doc.querySelector('.ipc-image') || doc.querySelector('img[class*="poster"]');
+                            if (imgElement) updatedImageUrl = imgElement.src;
+                        }
 
-                return { summary, imageUrl };
+                        return { summary, imageUrl: updatedImageUrl };
+                    } catch (e) {
+                        console.error('Deferred Movie Details Error:', e);
+                        return null;
+                    }
+                };
+
+                return { summary: '', imageUrl, deferredSummary };
             }
         } catch (e) {
             console.error('Movie API Error:', e);
