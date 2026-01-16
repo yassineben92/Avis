@@ -71,8 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dateAdded: new Date().toISOString()
             };
 
-            // Fetch Metadata (API Integration will be added in next step)
-            // This placeholder ensures the code runs now even without APIs
+            // Fetch Metadata
             let deferredFetch = null;
             if (typeof window.fetchMetadata === 'function') {
                 const metadata = await window.fetchMetadata(activeCategory, title);
@@ -218,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    async function fetchMovieMetadata(title) {
+    async function fetchImdbMetadata(title) {
         try {
             const searchUrl = `https://corsproxy.io/?${encodeURIComponent(`https://imdb.iamidiotareyoutoo.com/search?q=${title}`)}`;
             const response = await fetch(searchUrl);
@@ -250,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         return { summary, imageUrl: updatedImageUrl };
                     } catch (e) {
-                        console.error('Deferred Movie Details Error:', e);
+                        console.error('Deferred IMDb Details Error:', e);
                         return null;
                     }
                 };
@@ -258,11 +257,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return { summary: '', imageUrl, deferredSummary };
             }
         } catch (e) {
-            console.error('Movie API Error:', e);
+            console.error('IMDb API Error:', e);
         }
         return null;
     }
 
+    async function fetchMovieMetadata(title) {
+        return fetchImdbMetadata(title);
+    }
+
+    // Uses Jikan API (MyAnimeList) - Dedicated and robust for Manga
     async function fetchMangaMetadata(title) {
         try {
             const response = await fetch(`https://api.jikan.moe/v4/manga?q=${title}&limit=1`);
@@ -281,30 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
+    // Uses IMDb via proxy - Provides high-quality images.
+    // Note: May return movie adaptations for ambiguous titles (e.g. "Mario"), but ensures an image is always found.
     async function fetchGameMetadata(title) {
-        try {
-            const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages|extracts&titles=${encodeURIComponent(title)}&pithumbsize=600&exintro&explaintext&origin=*`;
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (data.query && data.query.pages) {
-                const pages = data.query.pages;
-                const pageId = Object.keys(pages)[0];
-
-                if (pageId !== '-1') {
-                    const page = pages[pageId];
-                    return {
-                        summary: page.extract,
-                        imageUrl: page.thumbnail ? page.thumbnail.source : null
-                    };
-                }
-            }
-        } catch (e) {
-            console.error('Game API Error:', e);
-        }
-        return null;
+        return fetchImdbMetadata(title);
     }
 
+    // Uses OpenLibrary API - Dedicated and open for Books
     async function fetchBookMetadata(title) {
         try {
             const response = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&limit=1`);
