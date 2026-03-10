@@ -1,0 +1,6 @@
+crewai
+langchain
+praw
+PyGithub
+requests
+python-dotenv
